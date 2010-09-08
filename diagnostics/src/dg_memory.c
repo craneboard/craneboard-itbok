@@ -188,7 +188,7 @@ status_t diag_ram_write(u32 start_addr, u32 size, u32 pattern)
 status_t diag_ram_data_line(volatile u32 * address)
 {
 	u32 pattern;
-	for (pattern = 1; pattern != 0; pattern << 1) {
+	for (pattern = 1; pattern != 0; (pattern << 1)) {
 		/* Write test pattern */
 		address = (volatile u32 *)pattern;
 

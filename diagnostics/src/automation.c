@@ -9,7 +9,6 @@
  *
  * Derived from OMAP2EVM ITBOK.
  *
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -28,21 +27,11 @@
 /*
  * modification history
  * --------------------
- *   10 Mar 2009 - Created from OMAP2 ITBOK source.
- *   15 Apr 2010 - Added Camera Support
- *   26 Apr 2010 - Added USB Gadget Support
- *                 Added USB Host Support
- *				   Added MMC Option for 24MHz and 48MHz
- *   10 Jun 2010 - Fixed issues with LCD backlight and camera test.
- * 				   When run all test selected, the LCD backlight and
- *                 camera was not working.  
- *                 updated test_svideoOut(), test_tvOut() and 
- *				   test_lcd_backlight() functions
- *   21 Jun 2010 - Updated headset detect function and Ethernet test
- *                 When run all test selected, audio was feable and
- *				   Ethernet test shows result as Fail even though the
- *                 host is alive.
- *   28 Jun 2010 - Integrated UART Test    
+ *  Modified by : 	Ulaganathan.V
+ *   			<ulaganathan@mistralsolutions.com>
+ *  14 Jul 2010 - Created from EVM3530 ITBOK source.
+ *  16 Jul 2010 - Modified source to support both OMAP35xx and AM35xx
+ *  04 Aug 2010 - Integrated GPIO Test for Crane board
  */
 
 #include <common.h>
@@ -55,33 +44,56 @@
 #include <linux/string.h>
 #include "sys_info.h"
 #include <asm/arch-omap3/sys_proto.h>
-#include "dg_audio.h"
+
+#if defined(CONFIG_OMAP3_EVM) || defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
 #include "dg_i2c.h"
-#include "dg_lcd.h"
-#include "dg_touchscreen.h"
 #include "dg_uart.h"
-#include "dg_keypad.h"
 #include "dg_memory.h"
 #include "dg_tvout.h"
+#endif
+
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+#include "dg_gpio.h"
+#endif
+
+#ifdef CONFIG_OMAP3_EVM
 #include "dg_svideo.h"
+#include "dg_audio.h"
+#include "dg_lcd.h"
+#include "dg_touchscreen.h"
+#include "dg_keypad.h"
+#endif
+
 #include "uart_utils.h"
 #include "triton2_utils.h"
 #include "dss.h"
 #include "omap3530evm.h"
-
 
 /* Version information of ITBOK */
 #define ITBOK_MAJOR_VERSION		1
 #define ITBOK_MINOR_VERSION		2
 #define ITBOK_PATCH_VERSION		0
 
-#define FIVE_SEC            	5
+#define FIVE_SEC             5
 #define TWENTY_SEC	        	20
-#define TEN                 	10
+#define TEN                  10
 
 #define ITBOK_ALL_TESTS             1
 #define ITBOK_MEMORY_TEST           2
 #define ITBOK_NAND_TEST             3
+
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+#define ITBOK_ETHERNET_TEST	4
+#define ITBOK_MMC_TEST		5
+#define ITBOK_OTG_HOST_TEST	6
+#define ITBOK_OTG_GADGET_TEST	7
+#define ITBOK_TV_OUT_TEST	8
+#define ITBOK_GPIO_TEST		9
+#define ITBOK_EXIT		10
+#define ITBOK_TEST_END		ITBOK_EXIT
+#endif
+
+#ifdef CONFIG_OMAP3_EVM
 #define ITBOK_AUDIO_HEADSET_TEST    4
 #define ITBOK_AUDIO_TEST            5
 #define ITBOK_KEYPAD_TEST           6
@@ -97,12 +109,14 @@
 #define ITBOK_CAMERA_TEST           16
 #define ITBOK_OTG_HOST_TEST         17
 #define ITBOK_OTG_GADGET_TEST       18
-#define ITBOK_UART_TEST 		    19
+#define ITBOK_UART_TEST 	    19
 #define ITBOK_EXIT                  20
 #define ITBOK_TEST_END              ITBOK_EXIT
+#endif
 
 #define NUM_CHAR 	        	1
 
+#ifdef CONFIG_OMAP3_EVM
 #define	AUDIO_TEST_COUNT		2
 #define	TS_TEST_COUNT			2
 
@@ -110,15 +124,17 @@
 #define UART_WRITE_TEST_COUNT		1
 #define	UART_TEST_COUNT			(UART_READ_TEST_COUNT + UART_WRITE_TEST_COUNT)
 
-#define TVOUT_FILLCLR_TEST_COUNT 	1
-#define TVOUT_CLRBAR_TEST_COUNT    	1
-#define TVOUT_TEST_COUNT    		(TVOUT_CLRBAR_TEST_COUNT + TVOUT_FILLCLR_TEST_COUNT)
-
 #define LCD_FILLCLR_TEST_COUNT		0
 #define LCD_BITMAP_TEST_COUNT		2
 #define LCD_TEST_COUNT    		(LCD_FILLCLR_TEST_COUNT + LCD_BITMAP_TEST_COUNT)
 
 #define BACKLIGHT_TEST_COUNT		1
+#endif
+
+#define TVOUT_FILLCLR_TEST_COUNT 	1
+#define TVOUT_CLRBAR_TEST_COUNT    	1
+#define TVOUT_TEST_COUNT   (TVOUT_CLRBAR_TEST_COUNT + TVOUT_FILLCLR_TEST_COUNT)
+
 #define ETHERNET_TEST_COUNT	     	1
 
 #define GPIODATAIN1 	0x98
@@ -141,7 +157,13 @@ char tv_standard[10][20] = { "PAL-60", "NTSC-M", "PAL-BDGHI", "PAL-N", "PAL-M", 
 	"NTSC-443"
 };
 
+#ifdef CONFIG_OMAP3_EVM
 static u8 diag_port = 1;
+#endif
+
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+static u8 diag_port = 3;
+#endif
 
 static S8 button_press[10];
 static char c;
@@ -154,19 +176,44 @@ extern u32 get_gpmc0_type(void);
 extern void get_string(U8 port, S8 * str, S16 size);
 extern void get_line(U8 port, S8 * str, S16 size);
 extern u32 get_number(U8 port, S8 * str, S16 size);
-extern status_t get_battery_status(void);
+
+#ifdef CONFIG_OMAP3_EVM
 extern S32 gpio_pin_init(U16 pin_num, U8 in_out);
 extern S32 set_gpio_output(U16 pin_num, U8 set);
 extern status_t dvi_fillcolor_test(U8 * color, U8 * image_type);
-extern int camera_test(void);
 extern void rtc_date_time_set(void);
+extern int camera_test(void);
+extern status_t get_battery_status(void);
+#endif
+
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
 extern int diag_mmc_test(int speed);
 extern int diag_otg_host_test(void);
 extern int diag_otg_gadget_test(void);
+#endif
+
+#ifdef CONFIG_OMAP3_AM3517CRANE
+extern int set_dss_gpio(int dir);
+extern int set_mmc_gpio(int dir);
+extern int set_ccdc_gpio(int dir);
+extern int set_i2c2_gpio(int dir);
+extern int set_reswarm_gpio(void);
+extern void crane_gpio_clk_init(void);
+extern int set_dss_mux(void);
+extern int set_mmc_mux(void);
+extern int set_ccdc_mux(void);
+extern int set_i2c_mux(void);
+extern int set_reset_mux(void);
+extern int save_mux_val(void);
+extern int restore_mux_val(void);
+#endif
 
 int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[]);
 
-U_BOOT_CMD(itbok, 10, 1, automation, "Run menu based diagnostics for given devcie(s)\n", "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+U_BOOT_CMD(itbok, 10, 1, automation,
+		"Run menu based diagnostics for given devcie(s)\n",
+	       	"\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+
 
 void test_memory(void)
 {
@@ -184,6 +231,360 @@ void test_nand(void)
 	printf("***********************************************************\n");
 }
 
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+
+void test_dss_gpio(void)
+{
+	int ret;
+	ret = set_dss_mux();
+	if(ret < 0)
+	{
+		printf("DSS - GPIOs not set\n");
+	}
+	else
+	{
+		printf("DSS - GPIOs are set\n");
+		set_dss_gpio(0);
+		set_dss_gpio(1);
+	}
+}
+
+void test_mmc_gpio(void)
+{
+	int ret;
+	ret = set_mmc_mux();
+	if(ret < 0)
+	{
+		printf("MMC - GPIOs not set \n");
+	}
+	else
+	{
+		printf("MMC - GPIOs are set\n");
+		set_mmc_gpio(0);
+		set_mmc_gpio(1);
+	}
+}
+
+void test_ccdc_gpio(void)
+{
+	int ret;
+	ret = set_ccdc_mux();
+	if(ret < 0)
+	printf("CCDC - GPIOs not set \n");
+	else
+	{
+		printf("CCDC - GPIOs are set\n");
+		set_ccdc_gpio(0);
+		set_ccdc_gpio(1);
+	}
+}
+
+void test_i2c2_gpio(void)
+{
+	int ret;
+	ret = set_i2c_mux();
+	if(ret < 0)
+		printf("i2c2 - GPIOs not set\n");
+	else
+	{
+		printf("i2c2 - GPIOs are set\n");
+		set_i2c2_gpio(0);
+		set_i2c2_gpio(1);
+	}
+}
+
+void test_reswarm_gpio(void)
+{
+	int ret;
+	ret = set_reset_mux();
+	if(ret < 0)
+		printf("Reswarm GPIO not set\n");
+	else
+	{
+		printf("Reswarm GPIO is set\n");
+		set_reswarm_gpio();
+	}
+}
+
+void test_gpio(void)
+{
+	int test;
+	int ret;
+	char input[10];
+
+	crane_gpio_clk_init();
+
+	ret = save_mux_val();
+	if (ret < 0)
+		printf("Saving mux values - Failed\n");
+	else
+		printf("Saving mux values - Passed\n");
+
+	printf("***********************************************************\n");
+	printf("Starting GPIO test...\n");
+
+	while (1) {
+			printf("Expansion Connector Test\n");
+			printf("========================\n");
+			printf("\t1. Test all GPIOs\n\t2. Test DSS GPIO\n"
+			       "\t3. Test MMC GPIO\n\t4. Test CCDC GPIO\n"
+		       	       "\t5. Test i2c2 GPIO\n\t6. Test Resetwarm GPIO\n"
+				" \t7. Exit and back to ITBOK Menu\n");
+			printf("Please enter test option: ");
+			test = get_number(diag_port, (S8 *) input, 3);
+			printf("\n\n");
+
+		if ((test < 1) || (test > 7)) {
+		printf("Invalid Input %d, Enter Options from 1 to 6\n", test);
+			continue;
+		}
+		switch (test) {
+			case 1:
+				test_dss_gpio();
+				test_mmc_gpio();
+				/*test_ccdc_gpio();*/
+				test_i2c2_gpio();
+				test_reswarm_gpio();
+				ret = restore_mux_val();
+				if(ret < 0)
+				printf("Restoring mux values - Failed\n");
+				else {
+				printf("Restoring mux values - Passed\n");
+				printf("-----------------------------\n");
+				printf("***** GPIO test finished*****\n");
+				printf("-----------------------------\n");
+				printf("Exiting to ITBOK menu....\n");
+				return;
+				}
+				break;
+
+			case 2:
+				test_dss_gpio();
+				break;
+			case 3:
+				test_mmc_gpio();
+				break;
+
+			/*case 4:
+				test_ccdc_gpio(); // connector is not available
+				break;*/
+
+			case 5:
+				test_i2c2_gpio();
+				break;
+
+			case 6:
+				test_reswarm_gpio();
+				break;
+
+			case 7:
+				ret = restore_mux_val();
+				if(ret < 0)
+				printf("Restoring mux values - Failed\n");
+				else
+				printf("Restoring mux values - Passed\n");
+				printf("-----------------------------\n");
+				printf("***** GPIO test finished*****\n");
+				printf("-----------------------------\n");
+				printf("Exiting to ITBOK menu....\n");
+				return;
+				break;
+	                default:
+				ret = restore_mux_val();
+				if(ret < 0)
+				printf("Restoring mux values - Failed\n");
+				else
+				printf("Restoring mux values - Passed\n");
+	                        printf("Unknown input. Not Supported!!!\n");
+	                        break;
+                	}
+        	}
+}
+
+#endif
+
+#if defined(CONFIG_OMAP3_EVM) || defined(CONFIG_OMAP3_AM3517EVM)\
+				|| defined(CONFIG_OMAP3_AM3517CRANE)
+void test_mmc_24mhz(void)
+{
+	int flag = 1;
+
+/*	printf("Please insert the SD/MMC card\n");
+	printf("Press ENTER to continue\n");
+	get_string(diag_port, button_press, 1);*/
+
+	if (diag_mmc_test(0) < 0) {
+		flag = 0;
+	}
+	printf("\nMMC Test in 24MHz mode Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
+	printf("***********************************************************\n");
+}
+
+/* testing ethernet */
+void ethernet_test(void)
+{
+	char *s;
+	pass_count = 0;
+
+	printf("\nStarting Ethernet Test...\n");
+
+	/* pre-set load_addr */
+	s = getenv("serverip");
+	if(s != NULL)
+	{
+		load_addr = simple_strtoul(s, NULL, 16);
+	}
+
+	printf("Server IP address is %s\n", s);
+	NetPingIP = string_to_ip(s);
+	if (NetPingIP == 0) {
+		printf("IP address is wrong\n");
+		pass_count = 0;
+	}
+
+	if (NetLoop(PING) < 0) {
+		printf("ping failed; host is not alive\n");
+		pass_count = 0;
+		goto exit0;
+	} else {
+		printf("host is alive\n");
+		pass_count++;
+		goto exit0;
+	}
+
+	printf("\nIs the Ethernet working properly (y/n): ");
+	get_string(diag_port, button_press, NUM_CHAR);
+	c = button_press[0];
+	while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
+		if (c == '\r')
+			printf("\nPlease enter (y/n) ");
+		printf("\n");
+
+		get_string(diag_port, button_press, NUM_CHAR);
+		c = button_press[0];
+	}
+
+	if ((c == 'y') || (c == 'Y')) {
+		printf("\nLCD Ethernet Test... PASS\n");
+		pass_count++;
+	} else {
+		printf("\nLCD Ethernet Test... FAIL\n");
+	}
+
+ exit0:
+	printf("\nEthernet Test Completed... %s\n", ((pass_count == 0) ? "FAIL" : "PASS"));
+	pass_count = 0;
+	printf("*********************************************************\n");
+}
+
+void test_tvOut(void)
+{
+	int i;
+	tv_mode = 0;
+	pass_count = 0;
+	printf("\nStarting TV-OUT Test...\n");
+
+	for (i = 0; i < TVOUT_CLRBAR_TEST_COUNT; i++) {
+		printf("Displaying colorbar in %s standard\n", tv_standard[i]);
+		diag_tvout_colorbar((u8 *) tv_standard[i]);
+
+		printf("Is the colorbar displayed on TV in %s standard proper? (y/n): ", tv_standard[i]);
+
+		get_string(diag_port, button_press, NUM_CHAR);
+
+		c = button_press[0];
+		while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
+			if (c == '\r')
+				printf("\nPlease enter (y/n) ");
+			printf("\b");
+			get_string(diag_port, button_press, NUM_CHAR);
+			c = button_press[0];
+		}
+
+		if ((c == 'y') || (c == 'Y')) {
+			printf("\nColorbar test in %s standard... PASSED \n", tv_standard[i]);
+			pass_count++;
+		} else {
+			printf("\nColorbar test in %s standard... FAILED \n", tv_standard[i]);
+		}
+	}
+
+	i = 1;
+	printf("Displaying %s color in %s standard\n", colorDisp[i], tv_standard[i]);
+	diag_tvout_fillcolour((u8 *) color[i], (u8 *) tv_standard[i]);
+
+	printf("Is the TV screen in %s color, %s standard proper? (y/n): ", colorDisp[i], tv_standard[i]);
+	get_string(diag_port, button_press, NUM_CHAR);
+
+	c = button_press[0];
+	while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
+		if (c == '\r')
+			printf("\nPlease enter (y/n) ");
+		printf("\b");
+		get_string(diag_port, button_press, NUM_CHAR);
+		c = button_press[0];
+	}
+	if ((c == 'y') || (c == 'Y')) {
+		printf("\nFillcolor test in %s color, %s standard... PASSED \n", colorDisp[i], tv_standard[i]);
+		pass_count++;
+	} else {
+		printf("\nFillcolor test in %s color, %s standard... FAILED \n", colorDisp[i], tv_standard[i]);
+	}
+
+	printf("\nTVOUT Test Completed... %s\n", ((pass_count == TVOUT_TEST_COUNT) ? "PASS" : "FAIL"));
+	pass_count = 0;
+	printf("***********************************************************\n");
+
+    out_regl(DSS_CONTROL, 0x0);
+}
+
+
+
+/* OTG host test */
+void test_otg_host(void)
+{
+	int flag = 1;
+
+/*	printf("Insert the USB pendrive formatted with FAT(16) only to OTG port" " and press any to continue .......\n");
+	get_string(diag_port, button_press, NUM_CHAR);
+	c = button_press[0];*/
+
+	printf("\nStarting OTG Host Test...\n");
+	if (diag_otg_host_test() < 0) {
+		flag = 0;
+	}
+	printf("\nOTG Host Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
+	printf("***********************************************************\n");
+}
+
+/* OTG gadget test */
+void test_otg_gadget(void)
+{
+	int flag = 1;
+
+	printf("\nStarting OTG Gadget Test...\n");
+
+#if defined(CONFIG_MUSB_UDC)
+	printf("Open the minicom on the Linux machine\n");
+	printf("Make sure that the USB OTG cable is connected between ");
+	printf("Target board and Linux machine\n");
+	printf("Press any key to continue..... \n");
+	get_string(diag_port, button_press, NUM_CHAR);
+	c = button_press[0];
+
+	printf("Now the u-boot prompt is at Linux Machine\n");
+#endif
+
+	if (diag_otg_gadget_test() < 0) {
+		flag = 0;
+	}
+
+	printf("\nOTG Gadget Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
+	printf("***********************************************************\n");
+}
+#endif
+
+#ifdef CONFIG_OMAP3_EVM /* EVM 3530 */
 void test_audio(void)
 {
 
@@ -465,67 +866,33 @@ void test_lcd(void)
 
 }
 
-void test_tvOut(void)
+/* DVI Test */
+void test_dvi(void)
 {
-	int i;
-	tv_mode = 0;
 
-	printf("\nStarting TV-OUT Test...\n");
+	unsigned char byte;
+	printf("\nStarting DVI Test...\n");
 
-	for (i = 0; i < TVOUT_CLRBAR_TEST_COUNT; i++) {
-		printf("Displaying colorbar in %s standard\n", tv_standard[i]);
-		diag_tvout_colorbar((u8 *) tv_standard[i]);
+	gpio_pin_init(69, 0);
+	set_gpio_output(69, 0);
 
-		printf("Is the colorbar displayed on TV in %s standard proper? (y/n): ", tv_standard[i]);
+	byte = 0xfd;
+	i2c_write(PWRMGT_ADDR_ID2, GPIODATADIR1, 1, &byte, 1);
 
-		get_string(diag_port, button_press, NUM_CHAR);
+	byte = 0x80;
+	i2c_write(PWRMGT_ADDR_ID2, GPIODATAOUT1, 1, &byte, 1);
 
-		c = button_press[0];
-		while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
-			if (c == '\r')
-				printf("\nPlease enter (y/n) ");
-			printf("\b");
-			get_string(diag_port, button_press, NUM_CHAR);
-			c = button_press[0];
-		}
+	byte = 0xaa;
+	i2c_write(PWRMGT_ADDR_ID2, GPIOPUPDCTR1, 1, &byte, 1);
 
-		if ((c == 'y') || (c == 'Y')) {
-			printf("\nColorbar test in %s standard... PASSED \n", tv_standard[i]);
-			pass_count++;
-		} else {
-			printf("\nColorbar test in %s standard... FAILED \n", tv_standard[i]);
-		}
-	}
+	byte = 0xaa;
+	i2c_write(PWRMGT_ADDR_ID2, GPIOPUPDCTR1, 1, &byte, 1);
 
-	i = 1;
-	printf("Displaying %s color in %s standard\n", colorDisp[i], tv_standard[i]);
-	diag_tvout_fillcolour((u8 *) color[i], (u8 *) tv_standard[i]);
-
-	printf("Is the TV screen in %s color, %s standard proper? (y/n): ", colorDisp[i], tv_standard[i]);
-
-	get_string(diag_port, button_press, NUM_CHAR);
-
-	c = button_press[0];
-	while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
-		if (c == '\r')
-			printf("\nPlease enter (y/n) ");
-		printf("\b");
-		get_string(diag_port, button_press, NUM_CHAR);
-		c = button_press[0];
-	}
-	if ((c == 'y') || (c == 'Y')) {
-		printf("\nFillcolor test in %s color, %s standard... PASSED \n", colorDisp[i], tv_standard[i]);
-		pass_count++;
-	} else {
-		printf("\nFillcolor test in %s color, %s standard... FAILED \n", colorDisp[i], tv_standard[i]);
-	}
-	printf("\nTVOUT Test Completed... %s\n", ((pass_count == TVOUT_TEST_COUNT) ? "PASS" : "FAIL"));
-	pass_count = 0;
-	printf("***********************************************************\n");
-
-    out_regl(DSS_CONTROL, 0x0);
+	dvi_fillcolor_test((U8 *) "red", (U8 *) "vga");
+	return;
 }
 
+/* s-video test */
 void test_svideoOut(void)
 {
 	int i;
@@ -600,6 +967,35 @@ void test_battery(void)
 
 	printf("\nBattery Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
 	printf("***********************************************************\n");
+}
+
+/* RTC Test */
+void test_rtc(void)
+{
+	printf("***********************************************************\n");
+	printf("\nStarting RTC Test...\n");
+	rtc_date_time_set();
+	printf("***********************************************************\n");
+
+	printf("\nIs date and time is proper (y/n): ");
+	get_string(diag_port, button_press, NUM_CHAR);
+	c = button_press[0];
+	while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
+		if (c == '\r')
+			printf("\nPlease enter (y/n) ");
+		printf("\n");
+
+		get_string(diag_port, button_press, NUM_CHAR);
+		c = button_press[0];
+	}
+
+	if ((c == 'y') || (c == 'Y')) {
+		printf("\nRTC Test... PASS\n");
+		pass_count++;
+	} else {
+		printf("\nRTC Test... FAIL\n");
+	}
+	return;
 }
 
 /* LCD back light test */
@@ -678,61 +1074,6 @@ void test_lcd_backlight(void)
 	printf("\nLCD back light Test Completed... %s\n", ((pass_count == BACKLIGHT_TEST_COUNT) ? "PASS" : "FAIL"));
 	pass_count = 0;
 	printf("***********************************************************\n");
-}
-
-/* testing ethernet */
-void ethernet_test(void)
-{
-	char *s;
-	pass_count = 0;
-
-	printf("\nStarting Ethernet Test...\n");
-
-	/* pre-set load_addr */
-	if ((s = getenv("serverip")) != NULL) {
-		load_addr = simple_strtoul(s, NULL, 16);
-	}
-
-	printf("Server IP address is %s\n", s);
-	NetPingIP = string_to_ip(s);
-	if (NetPingIP == 0) {
-		printf("IP address is wrong\n");
-		pass_count = 0;
-	}
-
-	if (NetLoop(PING) < 0) {
-		printf("ping failed; host is not alive\n");
-		pass_count = 0;
-		goto exit0;
-	} else {
-		printf("host is alive\n");
-		pass_count++;
-		goto exit0;
-	}
-
-	printf("\nIs the Ethernet working properly (y/n): ");
-	get_string(diag_port, button_press, NUM_CHAR);
-	c = button_press[0];
-	while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
-		if (c == '\r')
-			printf("\nPlease enter (y/n) ");
-		printf("\n");
-
-		get_string(diag_port, button_press, NUM_CHAR);
-		c = button_press[0];
-	}
-
-	if ((c == 'y') || (c == 'Y')) {
-		printf("\nLCD Ethernet Test... PASS\n");
-		pass_count++;
-	} else {
-		printf("\nLCD Ethernet Test... FAIL\n");
-	}
-
- exit0:
-	printf("\nEthernet Test Completed... %s\n", ((pass_count == 0) ? "FAIL" : "PASS"));
-	pass_count = 0;
-	printf("*********************************************************\n");
 }
 
 #define LOCAL_I2C_DEBUG		0
@@ -886,90 +1227,6 @@ void test_audio_headset(void)
 	return;
 }
 
-/* DVI Test */
-void test_dvi(void)
-{
-
-	unsigned char byte;
-	printf("\nStarting DVI Test...\n");
-
-	gpio_pin_init(69, 0);
-	set_gpio_output(69, 0);
-
-	byte = 0xfd;
-	i2c_write(PWRMGT_ADDR_ID2, GPIODATADIR1, 1, &byte, 1);
-
-	byte = 0x80;
-	i2c_write(PWRMGT_ADDR_ID2, GPIODATAOUT1, 1, &byte, 1);
-
-	byte = 0xaa;
-	i2c_write(PWRMGT_ADDR_ID2, GPIOPUPDCTR1, 1, &byte, 1);
-
-	byte = 0xaa;
-	i2c_write(PWRMGT_ADDR_ID2, GPIOPUPDCTR1, 1, &byte, 1);
-
-	dvi_fillcolor_test((U8 *) "red", (U8 *) "vga");
-	return;
-}
-
-/* Camera Test */
-void test_camera(void)
-{
-	int flag = 1;
-	printf("\nStarting Camera Test...\n");
-	printf("Please insert the Micron camera module\n");
-	printf("Press ENTER to continue\n");
-	get_string(diag_port, button_press, 1);
-	if (camera_test() < 0)
-		flag = 0;
-	printf("\nCamera Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
-	return;
-}
-
-/* RTC Test */
-void test_rtc(void)
-{
-	printf("***********************************************************\n");
-	printf("\nStarting RTC Test...\n");
-	rtc_date_time_set();
-	printf("***********************************************************\n");
-
-	printf("\nIs date and time is proper (y/n): ");
-	get_string(diag_port, button_press, NUM_CHAR);
-	c = button_press[0];
-	while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N')) {
-		if (c == '\r')
-			printf("\nPlease enter (y/n) ");
-		printf("\n");
-
-		get_string(diag_port, button_press, NUM_CHAR);
-		c = button_press[0];
-	}
-
-	if ((c == 'y') || (c == 'Y')) {
-		printf("\nRTC Test... PASS\n");
-		pass_count++;
-	} else {
-		printf("\nRTC Test... FAIL\n");
-	}
-	return;
-}
-
-void test_mmc_24mhz(void)
-{
-	int flag = 1;
-
-	printf("Please insert the SD/MMC card\n");
-	printf("Press ENTER to continue\n");
-	get_string(diag_port, button_press, 1);
-
-	if (diag_mmc_test(0) < 0) {
-		flag = 0;
-	}
-	printf("\nMMC Test in 24MHz mode Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
-	printf("***********************************************************\n");
-}
-
 void test_mmc_48mhz(void)
 {
 	int flag = 1;
@@ -1022,54 +1279,25 @@ void test_mmc(void)
 	}
 
 }
-
-/* OTG host test */
-void test_otg_host(void)
+/* Camera Test */
+void test_camera(void)
 {
 	int flag = 1;
-
-	printf("Insert the USB pendrive formatted with FAT(16) only to OTG port" " and press any to continue .......\n");
-	get_string(diag_port, button_press, NUM_CHAR);
-	c = button_press[0];
-
-	printf("\nStarting OTG Host Test...\n");
-	if (diag_otg_host_test() < 0) {
+	printf("\nStarting Camera Test...\n");
+	printf("Please insert the Micron camera module\n");
+	printf("Press ENTER to continue\n");
+	get_string(diag_port, button_press, 1);
+	if (camera_test() < 0)
 		flag = 0;
-	}
-
-	printf("\nOTG Host Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
-	printf("***********************************************************\n");
+	printf("\nCamera Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
+	return;
 }
 
-/* OTG gadget test */
-void test_otg_gadget(void)
-{
-	int flag = 1;
-
-	printf("\nStarting OTG Gadget Test...\n");
-
-#if defined(CONFIG_MUSB_UDC)
-	printf("Open the minicom on the Linux machine\n");
-	printf("Make sure that the USB OTG cable is connected between ");
-	printf("omap3evm board and Linux machine\n");
-	printf("Press any key to continue..... \n");
-	get_string(diag_port, button_press, NUM_CHAR);
-	c = button_press[0];
-
-	printf("Now the u-boot prompt is at Linux Machine\n");
 #endif
 
-	if (diag_otg_gadget_test() < 0) {
-		flag = 0;
-	}
-
-	printf("\nOTG Gadget Test Completed... %s\n", ((flag) ? "PASS" : "FAIL"));
-	printf("***********************************************************\n");
-}
-
-/* 
+/*
  * *******************************************************************************
- * Automation - main function 
+ * Automation - main function
  * *******************************************************************************
  */
 int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
@@ -1085,20 +1313,36 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 	while (1) {
 
 		if (!print_mask) {
+
+ 			#ifdef CONFIG_OMAP3_EVM
 			printf("\r------------------------------------\n");
 			printf("\tITBOK MENU\n");
 			printf("------------------------------------\n");
 			printf
-			    ("  1. Run All Tests (Options 2 to 16)\n  2. Run Memory Test\n  3. Run NAND Test\n"
-			     "  4. Run Audio Headset Detection Test\n  5. Run Audio Test\n  6. Run Keypad Test\n"
-			     "  7. Run Touchscreen Test\n  8. Run LCD Backlight Test\n  9. Run LCD Test\n"
-			     " 10. Run Battery Test\n 11. Run TV-out Test\n 12. Run S-Video Test\n" 
-				 " 13. Run RTC Test\n 14. Run Ethernet Test\n 15. Run MMC Test\n" 
-				 " 16. Run Camera Test\n 17. Run OTG Host Test\n" 
-				 " 18. Run OTG Gadget Test\n 19. Run UART Test\n 20. EXIT\n");
+                            ("  1. Run All Tests (Options 2 to 16)\n  2. Run Memory Test\n  3. Run NAND Test\n"
+                             "  4. Run Audio Headset Detection Test\n  5. Run Audio Test\n  6. Run Keypad Test\n"
+                             "  7. Run Touchscreen Test\n  8. Run LCD Backlight Test\n  9. Run LCD Test\n"
+                             " 10. Run Battery Test\n 11. Run TV-out Test\n 12. Run S-Video Test\n"
+                                 " 13. Run RTC Test\n 14. Run Ethernet Test\n 15. Run MMC Test\n"
+                                 " 16. Run Camera Test\n 17. Run OTG Host Test\n"
+                                 " 18. Run OTG Gadget Test\n 19. Run UART Test\n 20. EXIT\n");
 			printf("------------------------------------\n");
 			printf("\tITBOK MENU\n");
 			printf("------------------------------------\n");
+
+			#elif ((CONFIG_OMAP3_AM3517EVM) || (CONFIG_OMAP3_AM3517CRANE))
+			printf("--------------------------------------\n");
+			printf("	 CRANE - ITBOK MENU	      \n");
+			printf("--------------------------------------\n");
+			printf
+			    ("  1. Run All Tests (Options 2 to 10)\n  2. Run RAM Test\n  3. Run NAND Test\n"
+			     "  4. Run Ethernet Test\n  5. Run MMC Test\n  6. Run OTG Host Test\n"
+			     "  7. Run OTG Gadget Test\n  8. Run TV-out Test\n  9. Run GPIO test\n 10. EXIT\n");
+			printf("--------------------------------------\n");
+			printf("	 CRANE - ITBOK MENU	      \n");
+			printf("--------------------------------------\n");
+
+			#endif
 		}
 		printf("Please enter test option: ");
 
@@ -1114,50 +1358,71 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 		switch (test) {
 		case ITBOK_ALL_TESTS:
 			{
-				/* 2 Memory Test */
+				/*  Memory Test */
 				test_memory();
 
-				/* 3 NAND Test */
+				/*  NAND Test */
 				test_nand();
 
-				/* 4 Audio Headset detection test */
-				test_audio_headset();
-
-				/* 5 Audio test */
-				test_audio();
-
-				/* 6 Key pad test */
-				test_keypad();
-
-				/* 7 Touch Screen test */
-				test_touchScreen();
-
-				/* 8 LCD Backlight test */
-				test_lcd_backlight();
-
-				/* 9 LCD test */
-				test_lcd();
-
-				/* 10 Battery Test */
-				test_battery();
-
-				/* 11 TV-OUT test */
-				test_tvOut();
-
-				/* 12 SVIDEO-OUT test */
-				test_svideoOut();
-
-				/* 13 RTC Test */
-				test_rtc();
-
-				/* 14 Ethernet test */
+#if defined(CONFIG_OMAP3_EVM) || defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+				/*  Ethernet test */
 				ethernet_test();
 
-				/* 15 MMC Test */
+				/*  MMC Test */
 				test_mmc_24mhz();
 
-				/* 16 Camera Test */
+				/*  OTG host test */
+				test_otg_host();
+
+				/*  TV-OUT test */
+				test_tvOut();
+
+#endif
+
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+				/* GPIO test */
+				test_gpio();
+#endif
+
+#ifdef CONFIG_OMAP3_EVM
+
+				/*  Audio Headset detection test */
+				test_audio_headset();
+
+				/*  Audio test */
+				test_audio();
+
+				/*  Key pad test */
+				test_keypad();
+
+				/*  Touch Screen test */
+				test_touchScreen();
+
+				/*  LCD Backlight test */
+				test_lcd_backlight();
+
+				/*  LCD test */
+				test_lcd();
+
+				/*  Battery Test */
+				test_battery();
+
+				/*  RTC Test */
+                        	test_rtc();
+
+				/*  DVI test */
+				test_dvi();
+
+				 /* SVIDEO-OUT test */
+				test_svideoOut();
+
+				/*  Camera Test */
 				test_camera();
+
+				/* UART test */
+				test_uart();
+
+
 
 				printf("***********************************************************\n");
 				printf(">>>>>>>>>>>>>>>>> ALL THE TESTS COMPLETED <<<<<<<<<<<<<<<<<\n");
@@ -1165,8 +1430,8 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 				printf("Note: Summary and log files are available only if          \n");
 				printf("      the itbok was ran through TTL script                 \n");
 				printf("***********************************************************\n");
-
-				/* 16 Exit */
+#endif
+				/*  Exit */
 				printf("\nExiting ITBOK Test menu...\n");
 				return 0;
 
@@ -1185,29 +1450,64 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 			}
 			break;
 
+#if defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
+		case ITBOK_GPIO_TEST:
+			{
+				test_gpio();
+			}
+			break;
+#endif
+
+#if defined(CONFIG_OMAP3_EVM) || defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
 		case ITBOK_ETHERNET_TEST:
 			{
 				ethernet_test();
 			}
 			break;
 
+		case ITBOK_TV_OUT_TEST:
+			{
+				test_tvOut();
+			}
+			break;
+
+		case ITBOK_MMC_TEST:
+			{
+				test_mmc_24mhz();
+			}
+			break;
+
+		case ITBOK_OTG_GADGET_TEST:
+			{
+				test_otg_gadget();
+			}
+			break;
+
+		case ITBOK_OTG_HOST_TEST:
+			{
+				test_otg_host();
+			}
+			break;
+#endif
+
+#ifdef CONFIG_OMAP3_EVM
+
 		case ITBOK_AUDIO_HEADSET_TEST:
 			{
-				/* Audio Hedadset detection test */
 				test_audio_headset();
 			}
 			break;
 
 		case ITBOK_AUDIO_TEST:
 			{
-				/* Audio tests */
+
 				test_audio();
 			}
 			break;
 
 		case ITBOK_KEYPAD_TEST:
 			{
-				/* Key pad test */
+
 				test_keypad();
 			}
 			break;
@@ -1226,7 +1526,6 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 
 		case ITBOK_LCD_TEST:
 			{
-				/* LCD tests */
 				test_lcd();
 			}
 			break;
@@ -1237,45 +1536,37 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 			}
 			break;
 
-		case ITBOK_TV_OUT_TEST:
+		case ITBOK_RTC_TEST:
 			{
-				test_tvOut();
+				test_rtc();
+			}
+			break;
+
+		case ITBOK_DVI_TEST:
+			{
+				test_dvi();
 			}
 			break;
 
 		case ITBOK_S_VIDEO_TEST:
-			test_svideoOut();
-			break;
-
-		case ITBOK_RTC_TEST:
-			/* RTC Test */
-			test_rtc();
-			break;
-
-		case ITBOK_MMC_TEST:
-			/* MMC Test */
-			test_mmc();
+			{
+				test_svideoOut();
+			}
 			break;
 
 		case ITBOK_CAMERA_TEST:
-			/* Camera Test */
-			test_camera();
-			break;
-
-		case ITBOK_OTG_HOST_TEST:
-			/* OTG Host Test */
-			test_otg_host();
-			break;
-
-		case ITBOK_OTG_GADGET_TEST:
-			/* OTG Gadget Test */
-			test_otg_gadget();
+			{
+				test_camera();
+			}
 			break;
 
 		case ITBOK_UART_TEST:
-			/* UART Test */
-			test_uart();
+			{
+				test_uart();
+			}
 			break;
+
+#endif
 
 		case ITBOK_EXIT:
 			printf("\nExiting ITBOK Test menu...\n");
@@ -1285,5 +1576,7 @@ int automation(cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 			break;
 		}
 	}
+
 	return 0;
 }
+

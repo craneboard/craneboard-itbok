@@ -40,7 +40,7 @@
 #include <fat.h>
 #include <types.h>
 
-extern int mmc_clk_speed;
+int mmc_clk_speed;
 extern int mmc_write_test(void);
 
 int diag_mmc_test(int speed)

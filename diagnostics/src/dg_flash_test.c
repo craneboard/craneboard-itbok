@@ -47,7 +47,6 @@
 #define FLASH_WRITE_BUF_ADDR	0x84080000
 
 extern nand_info_t nand_info[];
-
 static int check_nand_bad_block(nand_info_t * nand);
 
 int flash_test(void)
@@ -75,11 +74,12 @@ int flash_test(void)
 
 	/* Added to check nand bad block */
 	ret = check_nand_bad_block(nand);
+#ifdef CONFIG_OMAP3_EVM
 	if (ret != 0) {
 		printf("FAILED\n");
 		return -1;
 	}
-
+#endif
 	for (count = 0; count < 3; count++) {
 		start = 283;
 		end = 345;
@@ -107,8 +107,9 @@ int flash_test(void)
 			off = instr.addr;
 			size = instr.len;
 			ret = nand_erase(nand, off, size);
-			if (ret) {
-				if (!nand_block_isbad(nand, off)) {
+			
+				if (ret) {
+					if (!nand_block_isbad(nand, off)) {
 					printf("erase failed at block %d\n", (int)block);
 					p_test_passed = test_passed = 0;
 				}
@@ -235,7 +236,8 @@ static int check_nand_bad_block(nand_info_t * nand)
 	unsigned int bad_blk_cnt = 0;
 	for (off = 0; off < nand->size; off += nand->erasesize) {
 		if (nand_block_isbad(nand, off)) {
-			printf("  %08lx\n", (long unsigned int)off);
+			/*printf("  %08lx\n", (long unsigned int)off);*/
+			printf("Bad block found at :  %08lx\n", (long unsigned int)off);
 			bad_blk_cnt++;
 
 			if (off <= NAND_PROGMABLE_AREA) {
