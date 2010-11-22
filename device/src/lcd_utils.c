@@ -45,6 +45,7 @@
 #include "lcd_utils.h"
 #include "dss.h"
 #include "../../diagnostics/inc/mt9t111.h"
+#include "../../diagnostics/inc/dg_videoin.h"
 
 #define  SD_FRAME_BUFFER 0x80377000
 
@@ -769,7 +770,7 @@ void set_row_inc(U8 pipeline, U32 inc_val)
 }
 
 /* Set pixel increment. */
-void set_pixel_inc(U8 pipeline, U32 inc_val)
+void set_pixel_inc(U8 pipeline, int inc_val)
 {
 	inc_val &= PIXEL_INC_MASK;
 
@@ -884,8 +885,9 @@ void configure_dss(U8 mode)
 	/* Size of graphics window. */
 	set_window_size(GFX_PIPELINE, mode);
 
-	if (mt9t111_lcd == 1)
+	if ((mt9t111_lcd == 1) || (videoin_lcd == 1)) {
 		set_format(GFX_PIPELINE, RGB24);
+	}
 	else
 		set_format(GFX_PIPELINE, RGB16);
 

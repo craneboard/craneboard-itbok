@@ -27,6 +27,7 @@
 
 #include <common.h>
 #include <command.h>
+/*#include <asm/arch/gpio.h>*/
 #include <asm/io.h>
 #include <asm/errno.h>
 #include <types.h>
@@ -40,7 +41,7 @@
 #define CM_FCLKEN_PER 		0x48005000
 #define CM_ICLKEN_PER 		0x48005010
 #define crane_readl(addr) (*(volatile unsigned short *)(addr))
-#define crane_writel(b,addr) ((*(volatile unsigned short *) (addr)) = (b))
+#define crane_writel(b, addr) ((*(volatile unsigned short *) (addr)) = (b))
 
 static u8 dss_left_gpio[] = {
 	68, 69, 71, 73, 75,
@@ -202,14 +203,6 @@ int set_ccdc_mux(void)
 	return SUCCESS;
 }
 
-/* reset */
-int set_reset_mux(void)
-{
-	PUT_MUX_VAL(CR(SYS_NRESWARM),       	(IEN  | PTD | DIS | M4));
-	return SUCCESS;
-}
-
-
 int save_mux_val(void)
 {
 	printf("started saving mux values\n");
@@ -286,7 +279,6 @@ int save_mux_val(void)
 	old_mux_val[63] = GET_MUX_VAL(CR(CCDC_DATA5));
 	old_mux_val[64] = GET_MUX_VAL(CR(CCDC_DATA6));
 	old_mux_val[65] = GET_MUX_VAL(CR(CCDC_DATA7));
-	old_mux_val[66] = GET_MUX_VAL(CR(SYS_NRESWARM));
 	/*Added late */
 	old_mux_val[67] = GET_MUX_VAL(CR(MMC2_DAT4));
 	old_mux_val[68] = GET_MUX_VAL(CR(MMC2_DAT5));
@@ -343,15 +335,15 @@ int restore_mux_val(void)
 	PUT_MUX_VAL(CR(MMC2_DAT3), old_mux_val[33]);
 
 	PUT_MUX_VAL(CR(MCBSP_CLKS), old_mux_val[34]);
-	PUT_MUX_VAL(CR(MCBSP1_CLKR),old_mux_val[35]);
+	PUT_MUX_VAL(CR(MCBSP1_CLKR), old_mux_val[35]);
 	PUT_MUX_VAL(CR(MCBSP1_FSR), old_mux_val[36]);
 	PUT_MUX_VAL(CR(MCBSP1_DX),  old_mux_val[37]);
 	PUT_MUX_VAL(CR(MCBSP1_DR),  old_mux_val[38]);
 	PUT_MUX_VAL(CR(MCBSP1_FSX), old_mux_val[39]);
-	PUT_MUX_VAL(CR(MCBSP1_CLKX),old_mux_val[40]);
+	PUT_MUX_VAL(CR(MCBSP1_CLKX), old_mux_val[40]);
 	PUT_MUX_VAL(CR(MCBSP3_DX),  old_mux_val[41]);
 	PUT_MUX_VAL(CR(MCBSP3_DR),  old_mux_val[42]);
-	PUT_MUX_VAL(CR(MCBSP3_CLKX),old_mux_val[43]);
+	PUT_MUX_VAL(CR(MCBSP3_CLKX), old_mux_val[43]);
 	PUT_MUX_VAL(CR(MCBSP3_FSX), old_mux_val[44]);
 
 	PUT_MUX_VAL(CR(UART2_CTS),  old_mux_val[45]);
@@ -377,7 +369,6 @@ int restore_mux_val(void)
 	PUT_MUX_VAL(CR(CCDC_DATA5), old_mux_val[63]);
 	PUT_MUX_VAL(CR(CCDC_DATA6), old_mux_val[64]);
 	PUT_MUX_VAL(CR(CCDC_DATA7), old_mux_val[65]);
-	PUT_MUX_VAL(CR(SYS_NRESWARM), old_mux_val[66]);
 
 	PUT_MUX_VAL(CR(MMC2_DAT4), old_mux_val[67]);
 	PUT_MUX_VAL(CR(MMC2_DAT5), old_mux_val[68]);
@@ -388,123 +379,115 @@ int restore_mux_val(void)
 return SUCCESS;
 }
 
-int rw_test(int gpios, u8 *output, u8 *input,int val)
+int rw_test(int gpios, u8 *output, u8 *input, int val)
 {
 	int i;
-	static int cnt = 0;
-	for(i=0; i < gpios; i++) {
+	static int cnt;
+	for (i = 0; i < gpios; i++) {
 		omap_set_gpio_dataout(output[i], val);
-		if (omap_get_gpio_datain(input[i]) != val)
-		{
-			printf ("GPIO combination \t%d<==>%d\t- Failed\n", output[i], input[i]);
-		}
-		else
-		{
-			printf ("GPIO combination \t%d<==>%d\t- Success\n", output[i], input[i]);
+		if (omap_get_gpio_datain(input[i]) != val) {
+			printf("GPIO combination \t%d<==>%d\t- Failed \
+					\n", output[i], input[i]);
+		} else {
+			printf("GPIO combination \t%d<==>%d\t- Success \
+					\n", output[i], input[i]);
 			cnt++;
 		}
 	}
-	if(cnt == gpios)
-	{
+	if (cnt == gpios) {
 		cnt = 0;
 		return SUCCESS;
-	}
-	else
+	} else {
 		return FAILURE;
+	}
 }
 
 int set_dss_gpio(int dir)
 {
 	int i;
 	int ret;
-	for(i=0; i < NUM_GPIO_DSS; i++) {
+	for (i = 0; i < NUM_GPIO_DSS; i++) {
 		if (omap_request_gpio(dss_left_gpio[i]))
-		printf("GPIO %d request failed\n", dss_left_gpio[i]);
+			printf("GPIO %d request failed\n", dss_left_gpio[i]);
 	}
-	for(i=0; i < NUM_GPIO_DSS; i++) {
+	for (i = 0; i < NUM_GPIO_DSS; i++) {
 		if (omap_request_gpio(dss_right_gpio[i]))
-		printf("GPIO %d request failed\n", dss_right_gpio[i]);
+			printf("GPIO %d request failed\n", dss_right_gpio[i]);
 	}
 
 	omap_request_gpio(78);
 
 	if (dir) {
-	for(i=0; i < NUM_GPIO_DSS; i++)
-	omap_set_gpio_direction(dss_left_gpio[i], 1);
-	for(i=0; i < NUM_GPIO_DSS; i++)
-	omap_set_gpio_direction(dss_right_gpio[i], 0);
+		for (i = 0; i < NUM_GPIO_DSS; i++)
+			omap_set_gpio_direction(dss_left_gpio[i], 1);
+		for (i = 0; i < NUM_GPIO_DSS; i++)
+			omap_set_gpio_direction(dss_right_gpio[i], 0);
 
-	omap_set_gpio_direction(78,0);
-	omap_set_gpio_dataout(78,1);
+	omap_set_gpio_direction(78, 0);
+	omap_set_gpio_dataout(78, 1);
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_DSS, dss_right_gpio, dss_left_gpio, 1);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("DSS right & left GPIOs combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("DSS right & left GPIOs combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("DSS right and left GPIOs combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("DSS right and left GPIOs combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
-	omap_set_gpio_direction(78,0);
-	omap_set_gpio_dataout(78,0);
+	omap_set_gpio_direction(78, 0);
+	omap_set_gpio_dataout(78, 0);
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_DSS, dss_right_gpio, dss_left_gpio, 0);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("DSS right & left GPIOs combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("DSS right and left GPIOs combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("DSS right and left GPIOs combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("DSS right & left GPIOs combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
-	}
-	}
-
-	else {
-	for(i=0; i < NUM_GPIO_DSS; i++)
-		omap_set_gpio_direction(dss_left_gpio[i], 0);
-	for(i=0; i < NUM_GPIO_DSS; i++)
-		omap_set_gpio_direction(dss_right_gpio[i], 1);
+	} else {
+		for (i = 0; i < NUM_GPIO_DSS; i++)
+			omap_set_gpio_direction(dss_left_gpio[i], 0);
+		for (i = 0; i < NUM_GPIO_DSS; i++)
+			omap_set_gpio_direction(dss_right_gpio[i], 1);
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_DSS, dss_left_gpio, dss_right_gpio, 1);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("\nDSS left & right GPIOs combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("\nDSS left & right GPIOs combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("\nDSS left and right GPIOs combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("\nDSS left and right GPIOs combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_DSS, dss_left_gpio, dss_right_gpio, 0);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("\nDSS left & right GPIOs combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("\nDSS left & right GPIOs combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("\nDSS left and right GPIOs combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("\nDSS left and right GPIOs combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 	}
 return SUCCESS;
@@ -514,88 +497,83 @@ int set_mmc_gpio(int dir)
 {
 	int i;
 	int ret;
-	for(i=0; i < NUM_GPIO_MMC; i++) {
+	for (i = 0; i < NUM_GPIO_MMC; i++) {
 		if (omap_request_gpio(mmc_left_gpio[i]))
 			printf("GPIO %d request failed\n", mmc_left_gpio[i]);
 		}
 
-	for(i=0; i < NUM_GPIO_MMC; i++) {
+	for (i = 0; i < NUM_GPIO_MMC; i++) {
 		if (omap_request_gpio(mmc_right_gpio[i]))
 			printf("GPIO %d request failed\n", mmc_right_gpio[i]);
 		}
 
 	if (dir) {
 
-	for(i=0; i < NUM_GPIO_MMC; i++)
-		omap_set_gpio_direction(mmc_left_gpio[i], 1);
-	for(i=0; i < NUM_GPIO_MMC; i++)
-		omap_set_gpio_direction(mmc_right_gpio[i], 0);
+		for (i = 0; i < NUM_GPIO_MMC; i++)
+			omap_set_gpio_direction(mmc_left_gpio[i], 1);
+		for (i = 0; i < NUM_GPIO_MMC; i++)
+			omap_set_gpio_direction(mmc_right_gpio[i], 0);
 
 	/* Data read/write test */
-	ret = rw_test (NUM_GPIO_MMC, mmc_right_gpio, mmc_left_gpio, 1);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC right & left GPIOs combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC right & left GPIOs combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
+	ret = rw_test(NUM_GPIO_MMC, mmc_right_gpio, mmc_left_gpio, 1);
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("MMC right and left GPIOs combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("MMC right and left GPIOs combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_MMC, mmc_right_gpio, mmc_left_gpio, 0);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC right & left GPIOs combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("MMC right and left GPIOs combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("MMC right and left GPIOs combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC right & left GPIOs combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
-	}
-	}
+	} else {
 
-	else {
-	for(i=0; i < NUM_GPIO_MMC; i++)
+	for (i = 0; i < NUM_GPIO_MMC; i++)
 		omap_set_gpio_direction(mmc_left_gpio[i], 0);
-	for(i=0; i < NUM_GPIO_MMC; i++)
+	for (i = 0; i < NUM_GPIO_MMC; i++)
 		omap_set_gpio_direction(mmc_right_gpio[i], 1);
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_MMC, mmc_left_gpio, mmc_right_gpio, 1);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC left & right GPIOs combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC left & right GPIOs combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("MMC left and right GPIOs combination - driven high"
+			".. FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("MMC left and right GPIOs combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_MMC, mmc_left_gpio, mmc_right_gpio, 0);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC left & right GPIOs combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("MMC left & right GPIOs combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("MMC left and right GPIOs combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("MMC left and right GPIOs combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 	}
 return SUCCESS;
@@ -605,64 +583,61 @@ int set_ccdc_gpio(int dir)
 {
 	int i;
 	int ret;
-	for(i=0; i < NUM_GPIO_CCDC; i++) {
+	for (i = 0; i < NUM_GPIO_CCDC; i++) {
 		if (omap_request_gpio(ccdc_left_gpio[i]))
 			printf("GPIO %d request failed\n", ccdc_left_gpio[i]);
 	}
-	for(i=0; i < NUM_GPIO_CCDC; i++) {
+	for (i = 0; i < NUM_GPIO_CCDC; i++) {
 		if (omap_request_gpio(ccdc_right_gpio[i]))
 			printf("GPIO %d request failed\n", ccdc_right_gpio[i]);
 	}
 
-	if(omap_request_gpio(96))
+	if (omap_request_gpio(96))
 		printf("GPIO 96 request failed\n");
-	if(omap_request_gpio(97))
+	if (omap_request_gpio(97))
 		printf("GPIO 97 request failed\n");
-	if(omap_request_gpio(94))
+	if (omap_request_gpio(94))
 		printf("GPIO 94 request failed\n");
 
 	if (dir) {
-	for(i=0; i < NUM_GPIO_CCDC; i++)
-		omap_set_gpio_direction(ccdc_left_gpio[i], 1);
-	for(i=0; i < NUM_GPIO_CCDC; i++)
-		omap_set_gpio_direction(ccdc_right_gpio[i], 0);
+		for (i = 0; i < NUM_GPIO_CCDC; i++)
+			omap_set_gpio_direction(ccdc_left_gpio[i], 1);
+		for (i = 0; i < NUM_GPIO_CCDC; i++)
+			omap_set_gpio_direction(ccdc_right_gpio[i], 0);
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_CCDC, ccdc_right_gpio, ccdc_left_gpio, 1);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC right & left GPIOs combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC right & left GPIOs combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("CCDC right and left GPIOs combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("CCDC right and left GPIOs combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_CCDC, ccdc_right_gpio, ccdc_left_gpio, 0);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC right & left GPIOs combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("CCDC right and left GPIOs combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("CCDC right and left GPIOs combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC right & left GPIOs combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
-	}
-	}
+	} else {
 
-	else {
-	for(i=0; i < NUM_GPIO_CCDC; i++)
-		omap_set_gpio_direction(ccdc_left_gpio[i], 0);
-	for(i=0; i < NUM_GPIO_CCDC; i++)
-		omap_set_gpio_direction(ccdc_right_gpio[i], 1);
+		for (i = 0; i < NUM_GPIO_CCDC; i++)
+			omap_set_gpio_direction(ccdc_left_gpio[i], 0);
+		for (i = 0; i < NUM_GPIO_CCDC; i++)
+			omap_set_gpio_direction(ccdc_right_gpio[i], 1);
 
 	omap_set_gpio_direction(96, 0);
 	omap_set_gpio_direction(97, 0);
@@ -674,17 +649,16 @@ int set_ccdc_gpio(int dir)
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_CCDC, ccdc_left_gpio, ccdc_right_gpio, 1);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC left & right GPIOs combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC left & right GPIOs combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("CCDC left and right GPIOs combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("CCDC left and right GPIOs combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
 	omap_set_gpio_dataout(96, 0);
@@ -693,17 +667,16 @@ int set_ccdc_gpio(int dir)
 
 	/* Data read/write test */
 	ret = rw_test(NUM_GPIO_CCDC, ccdc_left_gpio, ccdc_right_gpio, 0);
-	if(ret < 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC left & right GPIOs combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("CCDC left & right GPIOs combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (ret < 0) {
+		printf("---------------------------------------------------\n");
+		printf("CCDC left and right GPIOs combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("---------------------------------------------------\n");
+		printf("CCDC left and right GPIOs combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 	}
 return SUCCESS;
@@ -713,117 +686,79 @@ int set_i2c2_gpio(int dir)
 {
 	int set_val;
 
-	if(omap_request_gpio(168))
+	if (omap_request_gpio(168))
 		printf("GPIO 168 request failed\n");
-	if(omap_request_gpio(183))
+	if (omap_request_gpio(183))
 		printf("GPIO 183 request failed\n");
 
-	if (dir){
-	omap_set_gpio_direction(168, 0);
-	omap_set_gpio_direction(183, 1);
+	if (dir) {
+		omap_set_gpio_direction(168, 0);
+		omap_set_gpio_direction(183, 1);
 	set_val = 0;
 	omap_set_gpio_dataout(168, set_val);
-	if (omap_get_gpio_datain(183) != set_val)
-	{
-	printf("GPIO combination \t168<==>183 - Failed\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 left & right GPIO combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else {
-	printf("GPIO combination \t168<==>183 - Success\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 left & right GPIO combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (omap_get_gpio_datain(183) != set_val) {
+		printf("GPIO combination \t168<==>183 - Failed\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 left and right GPIO combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("GPIO combination \t168<==>183 - Success\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 left and right GPIO combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 
 	set_val = 1;
 	omap_set_gpio_dataout(168, set_val);
-	if (omap_get_gpio_datain(183) != set_val)
-	{
-	printf("GPIO combination \t168<==>183 - Failed\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 left & right GPIO combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
+	if (omap_get_gpio_datain(183) != set_val) {
+		printf("GPIO combination \t168<==>183 - Failed\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 left and right GPIO combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("GPIO combination \t168<==>183 - Success\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 left and right GPIO combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
-	else {
-	printf("GPIO combination \t168<==>183 - Success\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 left & right GPIO combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
-	}
-	}
+	} else {
 
-	else {
 	omap_set_gpio_direction(168, 1);
 	omap_set_gpio_direction(183, 0);
 	set_val = 0;
 	omap_set_gpio_dataout(183, set_val);
-	if (omap_get_gpio_datain(168) != set_val)
-	{
-	printf("GPIO combination \t183<==>168 - Failed\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 right & left GPIO combination - driven low... FAIL\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else {
-	printf("GPIO combination \t183<==>168 - Success\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 right & left GPIO combination - driven low... PASS\n");
-	printf("----------------------------------------------------------\n");
+	if (omap_get_gpio_datain(168) != set_val) {
+		printf("GPIO combination \t183<==>168 - Failed\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 right and left GPIO combination - driven low"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("GPIO combination \t183<==>168 - Success\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 right and left GPIO combination - driven low"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
 	set_val = 1;
 	omap_set_gpio_dataout(183, set_val);
-	if (omap_get_gpio_datain(168) != set_val)
-	{
-	printf ("GPIO combination \t183<==>168 - Failed\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 right & left GPIO combination - driven high... FAIL\n");
-	printf("----------------------------------------------------------\n");
+	if (omap_get_gpio_datain(168) != set_val) {
+		printf("GPIO combination \t183<==>168 - Failed\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 right and left GPIO combination - driven high"
+			"... FAIL\n");
+		printf("---------------------------------------------------\n");
+	} else {
+		printf("GPIO combination \t183<==>168 - Success\n");
+		printf("---------------------------------------------------\n");
+		printf("I2C2 right and left GPIO combination - driven high"
+			"... PASS\n");
+		printf("---------------------------------------------------\n");
 	}
-	else {
-	printf ("GPIO combination \t183<==>168 - Success\n");
-	printf("----------------------------------------------------------\n");
-	printf("I2C2 right & left GPIO combination - driven high... PASS\n");
-	printf("----------------------------------------------------------\n");
 	}
-	}
-return SUCCESS;
-}
-
-int set_reswarm_gpio(void)
-{
-	if(omap_request_gpio(30))
-		printf("GPIO 30 request failed\n");
-
-	omap_set_gpio_direction(30, 0);
-	omap_set_gpio_dataout(30, 1);
-	if(omap_get_gpio_datain(30) != 1)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("Reswarm GPIO driven high - Failed\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("Reswarm GPIO driven high - Passed\n");
-	printf("----------------------------------------------------------\n");
-	}
-
-	omap_set_gpio_dataout(30, 0);
-	if(omap_get_gpio_datain(30) != 0)
-	{
-	printf("----------------------------------------------------------\n");
-	printf("Reswarm GPIO driven low - Failed\n");
-	printf("----------------------------------------------------------\n");
-	}
-	else
-	{
-	printf("----------------------------------------------------------\n");
-	printf("Reswarm GPIO driven low - Passed\n");
-	printf("----------------------------------------------------------\n");
-	}
-
 return SUCCESS;
 }

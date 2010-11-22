@@ -58,14 +58,7 @@ struct rtc_time {
 };
 
 static u8 button_press[10];
-
-#ifdef CONFIG_OMAP3_EVM
 static u8 diag_port = 1;
-#endif
-
-#if defined(CONFIG_OMAP3_AM3517EVM ) || defined(CONFIG_OMAP3_AM3517CRANE)
-static u8 diag_port = 3;
-#endif
 
 /*
  * Macros

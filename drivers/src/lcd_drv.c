@@ -62,7 +62,6 @@ status_t dg_lcd_init(lcd_drv_struct_t * lcd_init_struct)
 #endif
 		return ret_status;
 	}
-
 	/* Configure the LCD. */
 	ret_status = configure_lcd(lcd_init_struct);
 	if (SUCCESS != ret_status) {

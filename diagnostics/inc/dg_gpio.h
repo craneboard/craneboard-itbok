@@ -38,6 +38,7 @@ extern "C" {
 #endif
 
 
+#define OMAP34XX_CTRL_BASE              (0x48000000 + 0x2000)
 
 /*
  * IEN  - Input Enable
@@ -458,7 +459,7 @@ extern "C" {
 #define CRANE_STRBEN_DLY1     0x0224
 #define CRANE_SYS_BOOT8       0x0226
 
-#define PUT_MUX_VAL(OFFSET,VALUE)\
+#define PUT_MUX_VAL(OFFSET, VALUE)\
 	crane_writel((VALUE), OMAP34XX_CTRL_BASE + (OFFSET));
 #define GET_MUX_VAL(OFFSET)\
 	crane_readl(OMAP34XX_CTRL_BASE + (OFFSET));
@@ -468,5 +469,17 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+int set_dss_gpio(int);
+int set_mmc_gpio(int);
+int set_ccdc_gpio(int);
+int set_i2c2_gpio(int);
+void crane_gpio_clk_init(void);
+int set_dss_mux(void);
+int set_mmc_mux(void);
+int set_ccdc_mux(void);
+int set_i2c_mux(void);
+int save_mux_val(void);
+int restore_mux_val(void);
 
 #endif  /* __DIAG_GPIO_H__ */

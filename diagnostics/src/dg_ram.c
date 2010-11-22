@@ -348,8 +348,6 @@ int testBlockseqComparison(UINT32 * bp1, UINT32 * bp2, UINT32 u32Count)
 
 int testWalkbitsComparison(UINT32 * bp1, UINT32 * bp2, UINT32 u32Count, int m)
 {
-	printf("*****************************************\n");
-	printf("Testing walking bits\n");
 	volatile UINT32 *p1 = (volatile UINT32 *)bp1;
 	volatile UINT32 *p2 = (volatile UINT32 *)bp2;
 	UINT32 i, j;
@@ -361,7 +359,7 @@ int testWalkbitsComparison(UINT32 * bp1, UINT32 * bp2, UINT32 u32Count, int m)
 		p2 = (volatile UINT32 *)bp2;
 		for (i = 0; i < u32Count; i++) {
 			/* Walk it up. */
-printf("Testing\t %d\n",i);
+
 			*p1++ = *p2++ = (i % 2 == 0) ? 0x00000001 << j : 0xFFFFFFFF ^ (0x00000001 << j);
 		}
 		if (testVerifySuccess(bp1, bp2, u32Count) == ERROR) {

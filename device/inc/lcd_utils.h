@@ -421,7 +421,7 @@ void set_csc_coff (U8 pipeline);
 void set_format (U8 pipeline, U8 format);
 void set_fifo_threshold (U8 pipeline);
 void set_row_inc (U8 pipeline, U32 inc_val);
-void set_pixel_inc (U8 pipeline, U32 inc_val);
+void set_pixel_inc (U8 pipeline, int inc_val);
 void enable_pipeline (U8 pipeline);
 void configure_dss (U8 mode);
 void display_lcd_image (void);

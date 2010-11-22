@@ -40,13 +40,15 @@
 #include <fat.h>
 #include <types.h>
 
-int mmc_clk_speed;
+#ifdef CONFIG_OMAP3_EVM
+extern int mmc_clk_speed;
+#endif
 extern int mmc_write_test(void);
 
 int diag_mmc_test(int speed)
 {
 	int ret;
-
+#ifdef CONFIG_OMAP3_EVM
 	if (!speed) {
 		printf("MMC Speed = 24MHz\n");
 		mmc_clk_speed = 4;	/* 24MHz */
@@ -54,6 +56,7 @@ int diag_mmc_test(int speed)
 		printf("MMC Speed = 48MHz\n");
 		mmc_clk_speed = 2;	/* 48MHz */
 	}
+#endif
 
 	if (run_command("mmc init", 0) < 0) {
 		return -1;
@@ -79,7 +82,9 @@ int diag_mmc_test(int speed)
 	if (mmc_write_test() < 0)
 		return -1;
 
+#ifdef CONFIG_OMAP3_EVM
 	mmc_clk_speed = 4;	/* 24MHz back to default */
+#endif
 	return 0;
 }
 

@@ -122,7 +122,6 @@ S32 tv_config(U8 video_std, U8 image_cap_flag, U16 gfx_x, U16 gfx_y, U16 gfx_ppl
 {
 	S32 ret_val = SUCCESS;
 	U32 i;
-
 #ifdef CONFIG_OMAP3_EVM
 	enable_power();		/* Enable volages to VENC */
 #endif

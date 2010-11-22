@@ -43,20 +43,23 @@ extern void register_battery_tests(void);
 void register_diagnostics(void)
 {
 	/* Register all test routines. */
-	register_ramtests();
-#if defined(CONFIG_OMAP3_EVM) || defined(CONFIG_OMAP3_AM3517EVM) || defined(CONFIG_OMAP3_AM3517CRANE)
-	register_tvout_tests();
-#endif
-
 #ifdef CONFIG_OMAP3_EVM
-	register_lcd_tests();
 	register_uarttests();
+	register_ramtests();
+	register_lcd_tests();
 	register_audio_tests();
 	register_keypad_tests();
 	register_ts_tests();
+	register_tvout_tests();
 	register_svideo_tests();
 	register_battery_tests();
 #endif
+
+#ifdef CONFIG_OMAP3_AM3517CRANE
+	register_ramtests();
+	register_tvout_tests();
+#endif
+
 }
 
 /* Converts the string to lower case. */
